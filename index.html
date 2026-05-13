@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product Decision Assessment</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue:#1F4E79; --navy:#16263F; --teal:#00C9B7; --bg:#F3F7FA;
+    --text:#1a2a3a; --muted:#5d7283; --soft:#eef4fb; --line:#dce8f3;
+    --green:#27ae60; --yellow:#f39c12; --red:#d64545; --gray:#8aa0b2;
+    --font:'Segoe UI', Arial, sans-serif;
+    --fs-xs:.76rem; --fs-sm:.86rem; --fs-base:.94rem; --fs-md:1rem; --fs-lg:1.12rem;
+  }
+  body { font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; font-size:var(--fs-base); }
+
+  /* Sticky top area: header + decision panel stay visible together */
+  .top-shell { position:sticky; top:0; z-index:40; box-shadow:0 2px 16px rgba(0,0,0,.22); }
+  header { background:var(--blue); color:white; padding:26px 32px 24px; display:grid; grid-template-columns:minmax(0,1fr) 390px; align-items:end; gap:32px; }
+  .header-title { min-width:0; }
+  h1 { font-size:2.45rem; font-weight:850; letter-spacing:-.9px; margin-bottom:9px; line-height:1.05; }
+  h1 span { color:var(--teal); }
+  .sub { font-size:var(--fs-md); opacity:.88; line-height:1.45; max-width:820px; font-weight:520; }
+  .controls { display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0; }
+  #count { display:none; }
+  .search-wrap { position:relative; width:390px; }
+  #search { width:100%; padding:12px 38px 12px 15px; border-radius:9px; border:0; outline:0; background:rgba(255,255,255,.17); color:white; font-family:var(--font); font-size:var(--fs-base); }
+  #search::placeholder { color:rgba(255,255,255,.58); }
+  #search:focus { background:rgba(255,255,255,.24); box-shadow:0 0 0 2px var(--teal); }
+  #clear-search { position:absolute; right:10px; top:50%; transform:translateY(-50%); border:0; background:transparent; color:rgba(255,255,255,.62); cursor:pointer; font-size:1rem; display:none; }
+
+  /* Fixed decision panel: compact full-width recommendation */
+  .decision-bar {
+    height:96px;
+    padding:12px 32px;
+    background:var(--navy);
+    border-top:1px solid rgba(255,255,255,.08);
+    overflow:hidden;
+  }
+  .usage-inline { display:none; }
+  .result-box {
+    width:100%;
+    max-width:none;
+    height:72px;
+    padding:11px 132px 11px 20px;
+    border-radius:15px;
+    background:#eaf2f8;
+    border:1.5px solid #b9cfe0;
+    box-shadow:0 4px 14px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.75);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:4px;
+    position:relative;
+    color:#17324d;
+  }
+  .result-title { font-size:1.06rem; font-weight:900; line-height:1.16; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#17324d; }
+  .result-text { min-width:0; font-size:.9rem; font-weight:600; line-height:1.28; color:#38546a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .reset-inside {
+    position:absolute;
+    right:14px;
+    top:50%;
+    transform:translateY(-50%);
+    border:1px solid rgba(31,78,121,.24);
+    background:rgba(255,255,255,.62);
+    color:#1F4E79;
+    border-radius:10px;
+    padding:8px 13px;
+    font-family:var(--font);
+    font-size:.82rem;
+    font-weight:800;
+    cursor:pointer;
+    opacity:.58;
+    transition:opacity .15s, background .15s;
+  }
+  .reset-inside:hover { opacity:1; background:white; }
+  .result-box.sig-ok { border-color:#9ed6b0; background:#eaf7ef; }
+  .result-box.sig-ok .result-title { color:#147a41; }
+  .result-box.sig-ok .result-text { color:#315f43; }
+  .result-box.sig-partial { border-color:#f4d38b; background:#fff5df; }
+  .result-box.sig-partial .result-title { color:#8a5603; }
+  .result-box.sig-partial .result-text { color:#6e5a32; }
+  .result-box.sig-bad { border-color:#efb8b8; background:#fff0f0; }
+  .result-box.sig-bad .result-title { color:#9e2c2c; }
+  .result-box.sig-bad .result-text { color:#704646; }
+  .result-box.sig-na { border-color:#b9cfe0; background:#eaf2f8; }
+  .result-box.sig-na .result-title { color:#17324d; }
+  .result-box.sig-na .result-text { color:#38546a; }
+
+  main { max-width:1320px; margin:0 auto; padding:34px 32px 54px; }
+  .section-label { font-size:1.08rem; font-weight:850; color:var(--blue); text-transform:uppercase; letter-spacing:1px; margin:28px 0 14px; padding-bottom:9px; border-bottom:2px solid var(--blue); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .section-count { font-size:var(--fs-xs); background:#dce8f3; color:var(--blue); padding:4px 10px; border-radius:99px; letter-spacing:.2px; text-transform:none; }
+  .question-grid { display:grid; grid-template-columns:1fr; gap:10px; }
+  .q-card { background:white; border-radius:14px; border-left:4px solid var(--navy); box-shadow:0 1px 6px rgba(0,0,0,.08); overflow:hidden; transition:box-shadow .18s, transform .15s; display:grid; grid-template-columns:minmax(0,1fr) 520px; gap:22px; align-items:start; padding:14px 16px 14px 18px; }
+  .q-card:hover { box-shadow:0 5px 20px rgba(31,78,121,.14),0 2px 8px rgba(0,0,0,.06); transform:translateY(-1px); }
+  .q-card.hidden { display:none; }
+  .q-left { display:grid; grid-template-columns:52px minmax(0,1fr); gap:16px; align-items:start; padding-top:2px; }
+  .q-num { width:36px; height:36px; border-radius:10px; background:#eef4fb; color:var(--blue); display:flex; align-items:center; justify-content:center; font-weight:850; font-size:.95rem; }
+  .question { font-size:var(--fs-lg); line-height:1.36; font-weight:760; letter-spacing:-.1px; padding-top:3px; max-width:720px; }
+  .q-right { width:520px; margin-left:auto; display:flex; flex-direction:column; gap:8px; }
+  .answer-row { display:grid; grid-template-columns:minmax(0,1fr) 210px; gap:14px; align-items:center; width:100%; }
+  select { width:100%; padding:9px 12px; border-radius:9px; border:1px solid #cbd9e4; background:white; font-family:var(--font); color:#1a2a3a; font-size:var(--fs-base); outline:none; }
+  select:focus { border-color:var(--teal); box-shadow:0 0 0 2px rgba(0,201,183,.18); }
+  .signal { font-size:var(--fs-sm); font-weight:850; padding:9px 10px; border-radius:9px; text-align:center; border:1px solid #e4edf4; background:#f8fbfd; white-space:nowrap; min-height:40px; display:flex; align-items:center; justify-content:center; }
+  .sig-ok { color:#147a41; background:#eaf7ef; border-color:#cdebd7; }
+  .sig-partial { color:#9a6104; background:#fff5df; border-color:#ffe1a7; }
+  .sig-bad { color:#a52d2d; background:#fff0f0; border-color:#f5c6c6; }
+  .sig-na { color:#586b7c; background:#f1f4f7; border-color:#d7e0e8; }
+  .next-step { width:100%; background:#f8fbfd; border:1px solid #e4edf4; border-radius:10px; padding:9px 12px; font-size:var(--fs-sm); color:#52687a; line-height:1.28; min-height:50px; }
+  .next-step strong { color:#38546a; display:block; margin-bottom:2px; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.5px; }
+  .actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; }
+  .btn { border:0; border-radius:9px; padding:10px 15px; cursor:pointer; font-family:var(--font); font-weight:800; font-size:var(--fs-sm); }
+  .btn-primary { background:var(--blue); color:white; }
+  .btn-secondary { background:#dce8f3; color:var(--blue); }
+  .btn:hover { filter:brightness(.97); }
+  mark { background:#fff176; color:inherit; border-radius:2px; padding:0 1px; }
+  #no-results { display:none; text-align:center; padding:52px 20px; color:#7a96aa; font-size:.95rem; }
+
+  @media (max-width:1120px) {
+    header { grid-template-columns:1fr; gap:16px; align-items:start; }
+    .controls { align-items:stretch; }
+    .search-wrap { width:100%; }
+    .decision-bar { height:96px; padding-top:12px; padding-bottom:12px; }
+    .result-box { height:72px; padding-right:118px; }
+    .q-card { grid-template-columns:1fr; gap:14px; }
+    .q-right { width:100%; }
+  }
+  @media (max-width:760px) {
+    header { padding:18px 16px; }
+    h1 { font-size:1.6rem; }
+    .sub { font-size:.86rem; }
+    .decision-bar,main { padding-left:16px; padding-right:16px; }
+    .decision-bar { padding-top:12px; padding-bottom:12px; }
+    .q-card { padding:15px; }
+    .q-left { grid-template-columns:44px 1fr; gap:10px; }
+    .question { font-size:1rem; }
+    .answer-row { grid-template-columns:1fr; }
+    .result-title { font-size:var(--fs-base); }
+    .result-text { font-size:var(--fs-sm); -webkit-line-clamp:2; }
+  }
+</style>
+</head>
+<body>
+<div class="top-shell">
+  <header>
+    <div class="header-title">
+      <h1>Product Decision <span>Assessment</span></h1>
+      <p class="sub">Jednostavan alat za proveru da li zahtev sme da pređe u task, mora u dodatnu razradu ili prvo traži razgovor sa stakeholderom.</p>
+    </div>
+    <div class="controls">
+      <div class="search-wrap">
+        <input type="text" id="search" placeholder="Pretraži pitanje, oblast, signal…" autocomplete="off" spellcheck="false" value="">
+        <button id="clear-search" title="Obriši pretragu">✕</button>
+      </div>
+    </div>
+  </header>
+  <div class="decision-bar" id="decisionBar">
+    <div class="result-box" id="resultBox">
+      <div class="result-title" id="resultTitle">⬜ Assessment nije završen.</div>
+      <div class="result-text" id="resultText">Popuni sva checklist pitanja ili označi “Nije primenljivo” tamo gde pitanje zaista nije relevantno.</div>
+      <button class="reset-inside" id="resetBtn" type="button">Reset</button>
+    </div>
+  </div>
+</div>
+<main>
+  <div id="content"></div>
+  <div id="no-results">Nema pitanja koja odgovaraju izabranoj pretrazi.</div>
+</main>
+<script>
+const questions = [{"area": "Razjašnjavanje problema", "number": 1, "question": "Šta korisnik pokušava da postigne kada nailazi na ovaj problem?"}, {"area": "Razjašnjavanje problema", "number": 2, "question": "Kako se problem manifestuje?"}, {"area": "Razjašnjavanje problema", "number": 3, "question": "Da li problem potpuno ili delimično onemogućava rad korisnika?"}, {"area": "Razjašnjavanje problema", "number": 4, "question": "Koliko često se problem javlja?"}, {"area": "Razjašnjavanje problema", "number": 5, "question": "Koga problem pogađa (sve korisnike ili određeni segment)?"}, {"area": "Razjašnjavanje problema", "number": 6, "question": "Kako se ova situacija trenutno rešava?"}, {"area": "Razjašnjavanje problema", "number": 7, "question": "Šta najverovatnije izaziva ovaj problem?"}, {"area": "Razjašnjavanje problema", "number": 8, "question": "Šta se dešava ako ovaj problem ne rešimo sada?"}, {"area": "Razjašnjavanje problema", "number": 9, "question": "Iz kojih izvora znamo da ovaj problem zaista postoji?"}, {"area": "Razjašnjavanje problema", "number": 10, "question": "Da li je ovo izolovan problem ili se isti potvrđuje kroz više situacija, korisnika ili izvora?"}, {"area": "Razjašnjavanje rešenja", "number": 1, "question": "Šta tačno smatramo uspešno rešenim problemom?"}, {"area": "Razjašnjavanje rešenja", "number": 2, "question": "Ko je glavni korisnik ili akter u ovom procesu?"}, {"area": "Razjašnjavanje rešenja", "number": 3, "question": "Ko pokreće akciju i da li je pokretanje ručno, automatsko ili sistemski uslovljeno?"}, {"area": "Razjašnjavanje rešenja", "number": 4, "question": "Koji su uslovi da se akcija dozvoli, odbije ili odloži?"}, {"area": "Razjašnjavanje rešenja", "number": 5, "question": "Koji se podaci, statusi, prava, vrednosti ili povezani zapisi direktno menjaju?"}, {"area": "Razjašnjavanje rešenja", "number": 6, "question": "Kako korisnik ili sistem dobija povratnu informaciju u svakom važnom koraku?"}, {"area": "Razjašnjavanje rešenja", "number": 7, "question": "Šta se dešava ako proces ne uspe, bude prekinut ili se izvrši samo delimično?"}, {"area": "Razjašnjavanje rešenja", "number": 8, "question": "Koje posledice ova promena ima na druge procese, module, integracije ili korisničke tokove?"}, {"area": "Razjašnjavanje rešenja", "number": 9, "question": "Da li promena mora biti evidentirana, auditovana ili dostupna za kasniju proveru?"}, {"area": "Razjašnjavanje rešenja", "number": 10, "question": "Koji su edge case-ovi koje sistem mora eksplicitno da pokrije?"}, {"area": "Širi uticaj", "number": 1, "question": "Da li zahtev rešava samo jedan konkretan slučaj ili menja način na koji proizvod treba da radi i u drugim sličnim situacijama?"}, {"area": "Širi uticaj", "number": 2, "question": "Da li zahtev utiče na korisničko iskustvo, zadržavanje korisnika, odustajanje ili prihode?"}, {"area": "Širi uticaj", "number": 3, "question": "Da li zahtev menja osnovnu biznis logiku sistema?"}, {"area": "Širi uticaj", "number": 4, "question": "Da li zahtev traži usaglašavanje sa drugim timovima pre nego što se pretvori u task?"}, {"area": "Širi uticaj", "number": 5, "question": "Da li zahtev može da se isporuči u očekivanom roku bez ugrožavanja važnijih obaveza?"}, {"area": "Širi uticaj", "number": 6, "question": "Da li zahtev stvara značajan tehnički dug ili otežava buduće održavanje?"}, {"area": "Širi uticaj", "number": 7, "question": "Da li zahtev utiče na postojeće roadmap ciljeve, prioritete ili već donete odluke?"}, {"area": "Širi uticaj", "number": 8, "question": "Da li postoji jasan poslovni razlog za hitnost zahteva?"}, {"area": "Širi uticaj", "number": 9, "question": "Da li zahtev povećava rizik po stabilnost, performanse, bezbednost ili kvalitet proizvoda?"}, {"area": "Širi uticaj", "number": 10, "question": "Da li zahtev utiče na komercijalni potencijal proizvoda?"}];
+const areas = ["Razjašnjavanje problema", "Razjašnjavanje rešenja", "Širi uticaj"];
+const nextSteps = {"Razjašnjavanje problema": {"bad": "Prođi sa stakeholderom pitanja za razjašnjavanje problema.", "partial": "Dopuni problem statement pre pisanja taska.", "ok": "Problem je dovoljno jasan za nastavak.", "na": "Proveri da li pitanje zaista nije relevantno za ovaj zahtev."}, "Razjašnjavanje rešenja": {"bad": "Razjasni očekivano ponašanje rešenja pre pisanja taska.", "partial": "Dopuni scenario, uslove, edge case-ove i očekivano ponašanje sistema.", "ok": "Rešenje je dovoljno jasno za nastavak.", "na": "Proveri da li pitanje zaista nije relevantno za ovaj zahtev."}, "Širi uticaj": {"bad": "Proveri širi uticaj na proizvod, biznis, timove ili postojeće procese.", "partial": "Potrebna je dodatna interna razrada uticaja pre taska.", "ok": "Uticaj je dovoljno razjašnjen za nastavak.", "na": "Proveri da li pitanje zaista nema uticaj na ovaj zahtev."}};
+const answers = ['Razjašnjeno','Delimično razjašnjeno','Nije razjašnjeno','Nemam informacije','Nije primenljivo'];
+const stateKey = 'productDecisionAssessment:v1';
+let activeArea = 'Sve oblasti';
+let query = '';
+let state = JSON.parse(localStorage.getItem(stateKey) || '{}');
+function saveState() {}
+function byId(id) { return document.getElementById(id); }
+function normalize(s) { return (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+function getSignal(answer) {
+  if(answer === 'Razjašnjeno') return ['✅ OK','sig-ok'];
+  if(answer === 'Delimično razjašnjeno') return ['⚠️ Potrebna dopuna','sig-partial'];
+  if(answer === 'Nije razjašnjeno' || answer === 'Nemam informacije') return ['❌ Blokira task','sig-bad'];
+  if(answer === 'Nije primenljivo') return ['⬜ Nije primenljivo','sig-na'];
+  return ['—',''];
+}
+function getNext(area, answer) {
+  const n = nextSteps[area];
+  if(!answer) return 'Izaberi odgovor da vidiš sledeći korak.';
+  if(answer === 'Razjašnjeno') return n.ok;
+  if(answer === 'Delimično razjašnjeno') return n.partial;
+  if(answer === 'Nije primenljivo') return n.na;
+  return n.bad;
+}
+function makeId(q) { return `${q.area}-${q.number}`.replace(/\s+/g,'-'); }
+function render() {
+  const content = byId('content');
+  content.innerHTML = '';
+  let visibleTotal = 0;
+  areas.forEach(area => {
+    const qs = questions.filter(q => q.area === area);
+    const visible = qs.filter(q => {
+      const id = makeId(q); const a = state[id]?.answer || '';
+      const hay = normalize(`${q.area} ${q.question} ${a} ${getSignal(a)[0]}`);
+      return !query || hay.includes(normalize(query));
+    });
+    if(!visible.length) return;
+    visibleTotal += visible.length;
+    const section = document.createElement('section');
+    section.innerHTML = `<div class="section-label"><span>${area}</span><span class="section-count">${visible.length} pitanja</span></div><div class="question-grid"></div>`;
+    const grid = section.querySelector('.question-grid');
+    visible.forEach(q => {
+      const id = makeId(q); const answer = state[id]?.answer || ''; const [sig, sigClass] = getSignal(answer);
+      const card = document.createElement('article');
+      card.className = 'q-card';
+      card.innerHTML = `
+        <div class="q-left">
+          <div class="q-num">${q.number}</div>
+          <div class="question">${q.question}</div>
+        </div>
+        <div class="q-right">
+          <div class="answer-row">
+            <select data-id="${id}" aria-label="Odgovor" autocomplete="off">
+              <option value="">Izaberi odgovor…</option>
+              ${answers.map(x => `<option value="${x}" ${x===answer?'selected':''}>${x}</option>`).join('')}
+            </select>
+            <div class="signal ${sigClass}" id="sig-${id}">${sig}</div>
+          </div>
+          <div class="next-step" id="next-${id}"><strong>Sledeći korak</strong>${getNext(q.area, answer)}</div>
+        </div>`;
+      grid.appendChild(card);
+    });
+    content.appendChild(section);
+  });
+  byId('no-results').style.display = visibleTotal ? 'none' : 'block';
+  document.querySelectorAll('select[data-id]').forEach(s => s.addEventListener('change', e => {
+    const id = e.target.dataset.id; state[id] = state[id] || {}; state[id].answer = e.target.value; saveState(); render(); updateSummary();
+  }));
+  const countEl = byId('count'); if (countEl) countEl.textContent = `${visibleTotal} od ${questions.length} pitanja prikazano`;
+  updateSummary();
+}
+function counts() {
+  const c = {ok:0, partial:0, bad:0, unknown:0, na:0, blank:0};
+  for(const q of questions) {
+    const a = state[makeId(q)]?.answer || '';
+    if(a === 'Razjašnjeno') c.ok++;
+    else if(a === 'Delimično razjašnjeno') c.partial++;
+    else if(a === 'Nije razjašnjeno') c.bad++;
+    else if(a === 'Nemam informacije') c.unknown++;
+    else if(a === 'Nije primenljivo') c.na++;
+    else c.blank++;
+  }
+  return c;
+}
+function areaHas(area, values) { return questions.filter(q=>q.area===area).some(q => values.includes(state[makeId(q)]?.answer || '')); }
+function updateSummary() {
+  const c = counts();
+  const totalRelevant = Math.max(1, questions.length - c.na);
+  const pct = Math.round(((c.ok + c.partial * 0.5) / totalRelevant) * 100);
+  const blockingCount = c.bad + c.unknown;
+  const supplementCount = c.partial;
+
+  let title, text, cls;
+
+  // Final recommendation replicates the checklist signal logic:
+  // any “Blokira task” answer blocks the task, regardless of remaining blank fields.
+  // if there is no blocker, any “Potrebna dopuna” answer means additional clarification before task.
+  // only if there are no blockers/dopune do blank fields keep the assessment unfinished.
+  if (blockingCount > 0) {
+    title = '❌ Task je blokiran.';
+    text = `Najmanje ${blockingCount} odgovor(a) ima signal “Blokira task”. Ne piši task dok se ta pitanja ne razjasne.`;
+    cls = 'sig-bad';
+  } else if (supplementCount > 0) {
+    title = '⚠️ Potrebna je dopuna pre taska.';
+    text = `Najmanje ${supplementCount} odgovor(a) traži dopunu. Pre taska dopuni kontekst, očekivano ponašanje ili širi uticaj.`;
+    cls = 'sig-partial';
+  } else if (c.blank > 0) {
+    title = '⬜ Assessment nije završen.';
+    text = 'Popuni sva checklist pitanja ili označi “Nije primenljivo” tamo gde pitanje zaista nije relevantno.';
+    cls = 'sig-na';
+  } else {
+    title = '✅ Ide u task.';
+    text = 'Nema blokera ni dopuna. Zahtev je dovoljno razjašnjen za prelazak u task razradu.';
+    cls = 'sig-ok';
+  }
+
+  byId('resultTitle').textContent = title;
+  byId('resultText').textContent = `${text} Procenat razjašnjenosti: ${pct}%.`;
+  byId('resultBox').className = 'result-box ' + cls;
+}
+
+function clearAssessmentState() {
+  try { localStorage.removeItem('pda-state'); sessionStorage.removeItem('pda-state'); } catch(e) {}
+  state = {};
+  query = '';
+  const search = byId('search');
+  if (search) search.value = '';
+  document.querySelectorAll('select').forEach(s => { s.value = ''; s.selectedIndex = 0; });
+  document.querySelectorAll('textarea,input:not(#search)').forEach(el => { el.value = ''; });
+}
+
+window.addEventListener('pageshow', () => {
+  clearAssessmentState();
+  render();
+});
+
+window.addEventListener('beforeunload', () => {
+  clearAssessmentState();
+});
+
+byId('search').addEventListener('input', e => { query = e.target.value; byId('clear-search').style.display = query ? 'block' : 'none'; render(); });
+byId('clear-search').addEventListener('click', () => { query=''; byId('search').value=''; byId('clear-search').style.display='none'; render(); });
+byId('resetBtn').addEventListener('click', () => { clearAssessmentState(); render(); });
+render();
+</script>
+</body>
+</html>
